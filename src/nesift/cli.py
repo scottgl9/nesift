@@ -12,6 +12,7 @@ from nesift import __version__
 from nesift import cache as cache_mod
 from nesift.config import DEFAULT_TOP_K, session_path
 from nesift.embedder import Embedder
+from nesift.installer import detect_targets, install, install_mcp
 from nesift.pipeline import (
     ingest_url,
     ingest_urls,
@@ -396,6 +397,61 @@ def cmd_init(
     else:
         target.write_text(snippet, encoding="utf-8")
         typer.echo(f"wrote {target}")
+
+
+@app.command("install")
+def cmd_install(
+    target: str | None = typer.Option(
+        None,
+        "--target",
+        help="Install for one agent family: claude, openclaw, or agents.",
+    ),
+    all_targets: bool = typer.Option(False, "--all", help="Install all supported targets."),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing installed files."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show planned changes without writing."),
+    mcp: bool = typer.Option(False, "--mcp", help="Also register nesift-mcp in Claude Desktop."),
+) -> None:
+    """Install the nesift skill files for Claude, OpenClaw, or Agents."""
+
+    if target and all_targets:
+        typer.secho("Choose either --target or --all, not both.", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=2)
+
+    if all_targets:
+        targets = ["claude", "openclaw", "agents"]
+    elif target:
+        targets = [target]
+    else:
+        targets = detect_targets()
+        if not targets:
+            typer.secho(
+                "⚠ no supported agent roots detected; use --all or create ~/.claude, ~/.openclaw, or ~/.agents.",
+                fg=typer.colors.YELLOW,
+            )
+            raise typer.Exit(code=1)
+
+    results = install(targets, force=force, dry_run=dry_run)
+    failed = False
+    for result in results:
+        if result.skipped:
+            typer.secho(f"⚠ {result.target}: skipped ({result.reason})", fg=typer.colors.YELLOW)
+            if result.reason == "unknown target":
+                failed = True
+            continue
+        typer.secho(f"✓ {result.target}: {result.reason} -> {result.dest}", fg=typer.colors.GREEN)
+        for path in result.files_written:
+            typer.echo(f"  {path}")
+
+    if mcp:
+        ok, message = install_mcp(dry_run=dry_run)
+        if ok:
+            typer.secho(f"✓ mcp: {message}", fg=typer.colors.GREEN)
+        else:
+            typer.secho(f"✗ mcp: {message}", err=True, fg=typer.colors.RED)
+            failed = True
+
+    if failed:
+        raise typer.Exit(code=1)
 
 
 @app.command("mcp")
