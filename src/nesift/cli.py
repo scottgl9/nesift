@@ -37,8 +37,8 @@ def _persist(store: SessionStore) -> None:
     store.save()
 
 
-def _embedder(fast: bool) -> Embedder:
-    return Embedder(fast=fast)
+def _embedder(fast: bool, lang: bool = False) -> Embedder:
+    return Embedder(fast=fast, lang=lang)
 
 
 def _emit(payload: object, *, as_json: bool) -> None:
@@ -55,6 +55,7 @@ def _emit(payload: object, *, as_json: bool) -> None:
 def cmd_add(
     url: str = typer.Argument(..., help="URL to fetch and index."),
     fast: bool = typer.Option(False, "--fast", help="Use the smaller potion-base-8M model."),
+    lang: bool = typer.Option(False, "--lang", help="Use potion-multilingual-128M (101 languages)."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embeddings (BM25 only)."),
     session: str | None = typer.Option(None, "--session"),
     as_json: bool = typer.Option(False, "--json"),
@@ -62,7 +63,7 @@ def cmd_add(
     """Fetch a URL, extract, chunk, and index it into the session."""
 
     store = _load_store(session)
-    embedder = None if no_embed else _embedder(fast)
+    embedder = None if no_embed else _embedder(fast, lang)
     try:
         page = ingest_url(url, store, embedder=embedder)
     except Exception as exc:
@@ -89,6 +90,7 @@ def cmd_add(
 def cmd_add_batch(
     urls: list[str] = typer.Argument(..., help="URLs to ingest."),
     fast: bool = typer.Option(False, "--fast"),
+    lang: bool = typer.Option(False, "--lang"),
     no_embed: bool = typer.Option(False, "--no-embed"),
     session: str | None = typer.Option(None, "--session"),
     as_json: bool = typer.Option(False, "--json"),
@@ -96,7 +98,7 @@ def cmd_add_batch(
     """Ingest multiple URLs sequentially; continues past per-URL failures."""
 
     store = _load_store(session)
-    embedder = None if no_embed else _embedder(fast)
+    embedder = None if no_embed else _embedder(fast, lang)
     summary: list[dict] = []
     for url in urls:
         try:
@@ -125,6 +127,7 @@ def cmd_query(
     budget: int | None = typer.Option(None, "--budget", help="Trim to N tokens."),
     url: str | None = typer.Option(None, "--url", help="Restrict to a single indexed URL."),
     fast: bool = typer.Option(False, "--fast"),
+    lang: bool = typer.Option(False, "--lang"),
     no_embed: bool = typer.Option(False, "--no-embed"),
     session: str | None = typer.Option(None, "--session"),
     as_json: bool = typer.Option(False, "--json"),
@@ -132,7 +135,7 @@ def cmd_query(
     """Retrieve relevant chunks across indexed pages."""
 
     store = _load_store(session)
-    embedder = None if no_embed else _embedder(fast)
+    embedder = None if no_embed else _embedder(fast, lang)
     resp = run_query(
         q,
         store,
@@ -171,6 +174,7 @@ def cmd_answer(
     budget: int | None = typer.Option(2000, "--budget"),
     url: str | None = typer.Option(None, "--url"),
     fast: bool = typer.Option(False, "--fast"),
+    lang: bool = typer.Option(False, "--lang"),
     no_embed: bool = typer.Option(False, "--no-embed"),
     session: str | None = typer.Option(None, "--session"),
     as_json: bool = typer.Option(False, "--json"),
@@ -178,7 +182,7 @@ def cmd_answer(
     """Produce an extractive answer with numbered citations."""
 
     store = _load_store(session)
-    embedder = None if no_embed else _embedder(fast)
+    embedder = None if no_embed else _embedder(fast, lang)
     text, resp = run_answer(q, store, embedder=embedder, budget=budget, url_filter=url)
     if as_json:
         _emit(
@@ -328,6 +332,76 @@ def cmd_save(
     store = _load_store(session)
     path = store.save(output)
     typer.echo(f"saved {len(store.pages)} pages → {path}")
+
+
+_AGENTS_SNIPPET = """\
+## nesift — token-efficient web research
+
+Use `nesift` instead of raw `web_fetch` when researching multiple sources:
+
+```bash
+# 1. Pre-score snippets to avoid fetching irrelevant pages
+nesift score "<query>" "<snippet1>" "<snippet2>" ...
+
+# 2. Index pages on-the-fly
+nesift add <url>
+nesift add-batch <url1> <url2> ...
+
+# 3. Ask questions across everything indexed (token-budgeted)
+nesift query "<question>" --budget 2000
+nesift answer "<question>" --budget 2000
+
+# 4. One-shot SearXNG-backed research
+nesift search "<query>" --top 5 --budget 2000
+
+# 5. Session hygiene
+nesift list
+nesift clear
+```
+
+Session state is per-shell (keyed on parent PID); override with `NESIFT_SESSION`.
+"""
+
+
+@app.command("init")
+def cmd_init(
+    file: str = typer.Option(
+        "AGENTS.md",
+        "--file",
+        help="Target file (e.g. AGENTS.md, CLAUDE.md).",
+    ),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Replace file if it exists."),
+) -> None:
+    """Drop a nesift usage snippet into ``AGENTS.md`` (or another agent file)."""
+
+    target = Path(file)
+    snippet = _AGENTS_SNIPPET
+    if target.exists() and not overwrite:
+        existing = target.read_text(encoding="utf-8")
+        if "nesift" in existing.lower():
+            typer.echo(f"{target} already mentions nesift; not modifying. Use --overwrite to replace.")
+            return
+        target.write_text(existing.rstrip() + "\n\n" + snippet, encoding="utf-8")
+        typer.echo(f"appended nesift section to {target}")
+    else:
+        target.write_text(snippet, encoding="utf-8")
+        typer.echo(f"wrote {target}")
+
+
+@app.command("mcp")
+def cmd_mcp() -> None:
+    """Start the MCP server (stdio). Requires the ``[mcp]`` extra."""
+
+    try:
+        from nesift.mcp_server import main as mcp_main
+    except ImportError as exc:
+        typer.secho(
+            f"MCP extra not installed: {exc}. Install with `pip install 'nesift[mcp]'`.",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=2) from exc
+    mcp_main()
 
 
 @app.command("version")

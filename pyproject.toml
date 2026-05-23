@@ -29,19 +29,27 @@ dependencies = [
     "httpx>=0.27,<1",
     "typer>=0.12,<1",
     "tiktoken>=0.8,<1",
+    "pypdf>=4,<7",
 ]
 
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.0",
+]
 dev = [
     "pytest>=8",
     "pytest-cov",
     "ruff",
     "mypy",
     "respx",
+    "build",
+    "twine",
+    "mcp>=1.0",
 ]
 
 [project.scripts]
 nesift = "nesift.cli:main"
+nesift-mcp = "nesift.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/scottgl9/nesift"

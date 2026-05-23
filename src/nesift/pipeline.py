@@ -15,7 +15,8 @@ from nesift.chunker import chunk_document
 from nesift.config import DEFAULT_TOP_K
 from nesift.embedder import Embedder, EmbedderProtocol
 from nesift.extractor import extract
-from nesift.fetcher import fetch
+from nesift.fetcher import fetch, fetch_raw
+from nesift.pdf import extract_pdf, is_pdf_bytes, is_pdf_url
 from nesift.index.hybrid import rerank, rrf
 from nesift.schema import Chunk, Page, QueryResult, ScoredSnippet
 from nesift.scorer import score_snippets
@@ -42,15 +43,29 @@ def ingest_url(
     *,
     embedder: EmbedderProtocol | None = None,
     html: str | None = None,
+    pdf_bytes: bytes | None = None,
 ) -> Page:
     """Fetch (if needed), extract, chunk, embed, and store one URL.
 
     Returns the resulting :class:`Page`. Replaces any existing page with
-    the same URL.
+    the same URL. Dispatches to the PDF extractor when the URL ends in
+    ``.pdf`` or the response body has a PDF signature; otherwise uses
+    the trafilatura HTML extractor.
     """
 
-    raw = html if html is not None else fetch(url)
-    doc = extract(raw, url=url)
+    if pdf_bytes is not None:
+        doc = extract_pdf(pdf_bytes, url=url)
+    elif html is not None:
+        doc = extract(html, url=url)
+    elif is_pdf_url(url):
+        body, _ = fetch_raw(url)
+        doc = extract_pdf(body, url=url)
+    else:
+        body, ctype = fetch_raw(url)
+        if "application/pdf" in ctype.lower() or is_pdf_bytes(body[:5]):
+            doc = extract_pdf(body, url=url)
+        else:
+            doc = extract(body.decode("utf-8", errors="replace"), url=url)
     summary = triage(doc)
     pid = page_id_for(url)
     chunk_specs = chunk_document(doc)

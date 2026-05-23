@@ -7,6 +7,8 @@ htmlcov/
 .venv/
 build/
 dist/
+*.tar.gz
+*.whl
 *.egg
 .ruff_cache/
 .mypy_cache/

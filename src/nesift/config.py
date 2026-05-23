@@ -8,6 +8,7 @@ from pathlib import Path
 
 DEFAULT_MODEL = "minishlab/potion-retrieval-32M"
 FAST_MODEL = "minishlab/potion-base-8M"
+MULTILINGUAL_MODEL = "minishlab/potion-multilingual-128M"
 
 DEFAULT_TOP_K = 5
 DEFAULT_DEDUP_THRESHOLD = 0.88

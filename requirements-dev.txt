@@ -4,3 +4,6 @@ pytest-cov
 ruff
 mypy
 respx
+build
+twine
+mcp>=1.0

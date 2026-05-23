@@ -62,15 +62,38 @@ See [`docs/architecture.md`](docs/architecture.md).
 
 ## Status
 
-Implemented (this release):
-- Phase 1: CLI MVP (`add`, `query`, `list`, `clear`)
-- Phase 2: hybrid retrieval, dedup, `--fast`
-- Phase 3: triage summaries, `--budget`, `answer`, `score`
-- Phase 5 (partial): SearXNG bridge (`nesift search`, `NESIFT_SEARXNG_URL`)
+All five PRD phases implemented:
 
-Deferred:
-- Phase 4: MCP server (`nesift[mcp]` extras)
-- Phase 5 remainder: multilingual model, PDF ingestion, OpenClaw skill scaffolding
+- Phase 1 — CLI MVP: `add`, `query`, `list`, `clear`
+- Phase 2 — Hybrid retrieval, cross-page dedup, `--fast`
+- Phase 3 — Triage summaries, `--budget`, `answer`, `score`
+- Phase 4 — MCP server (`nesift[mcp]`, `nesift-mcp` or `nesift mcp`), `nesift init`, OpenClaw skill scaffold
+- Phase 5 — SearXNG bridge, `--lang` (multilingual model), PDF ingestion
+
+## MCP server
+
+```bash
+pip install "nesift[mcp]"
+nesift-mcp     # stdio MCP server
+```
+
+Tools exposed: `score_snippets`, `add_page`, `add_batch`, `query`, `answer`, `list_pages`, `clear`, `search`. See [`docs/mcp.md`](docs/mcp.md).
+
+## PDF ingestion
+
+```bash
+nesift add https://arxiv.org/pdf/2005.11401.pdf
+```
+
+Content type is auto-detected; `.pdf` URLs (or any response with the PDF signature) route through `pypdf`.
+
+## Multilingual
+
+```bash
+nesift add https://es.wikipedia.org/wiki/... --lang
+```
+
+`--lang` swaps in `potion-multilingual-128M` (101 languages).
 
 ## License
 

@@ -6,7 +6,7 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-from nesift.config import DEFAULT_MODEL, FAST_MODEL
+from nesift.config import DEFAULT_MODEL, FAST_MODEL, MULTILINGUAL_MODEL
 
 
 @runtime_checkable
@@ -27,8 +27,21 @@ class Embedder:
     :class:`FakeEmbedder` to avoid the ~30-60MB download.
     """
 
-    def __init__(self, model_name: str | None = None, *, fast: bool = False) -> None:
-        self.model_name = model_name or (FAST_MODEL if fast else DEFAULT_MODEL)
+    def __init__(
+        self,
+        model_name: str | None = None,
+        *,
+        fast: bool = False,
+        lang: bool = False,
+    ) -> None:
+        if model_name is None:
+            if fast:
+                model_name = FAST_MODEL
+            elif lang:
+                model_name = MULTILINGUAL_MODEL
+            else:
+                model_name = DEFAULT_MODEL
+        self.model_name = model_name
         self._model = None
         self._dim: int | None = None
 

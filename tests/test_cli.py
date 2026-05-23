@@ -14,7 +14,7 @@ runner = CliRunner()
 
 
 def _patch_embedder(monkeypatch):
-    monkeypatch.setattr(cli_mod, "_embedder", lambda fast: FakeEmbedder(dim=64))
+    monkeypatch.setattr(cli_mod, "_embedder", lambda fast=False, lang=False: FakeEmbedder(dim=64))
 
 
 def _session_env(tmp_path: Path, monkeypatch) -> None:
