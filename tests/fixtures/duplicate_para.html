@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Mirror of Resilient Retry Logic</title></head>
+<body>
+<main>
+<article>
+<h1>Mirror: Resilient Retry Logic</h1>
+<p>The canonical recommendation is exponential backoff with jitter. The delay between attempt n and attempt n+1 grows exponentially, but a random factor is mixed in so that clients do not all retry in lockstep.</p>
+<p>A typical formula is: delay = min(cap, base * 2^attempt) * random(0.5, 1.5). The jitter spreads retries across the recovery window, preventing thundering-herd behavior when a downstream comes back online.</p>
+<p>Mirrored from a primary source for archival purposes; content matches the original word-for-word so deduplication should collapse the overlap.</p>
+</article>
+</main>
+</body>
+</html>

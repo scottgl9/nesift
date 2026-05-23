@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Retrieval-augmented generation - WikiTest</title></head>
+<body>
+<div id="mw-navigation">Navigation menu (ignored)</div>
+<div id="content">
+<h1 id="firstHeading">Retrieval-augmented generation</h1>
+<div id="bodyContent">
+<p>Retrieval-augmented generation (RAG) is a technique that combines a large language model with an external retrieval step. Rather than relying solely on the parameters baked into the model during training, a RAG system queries a corpus of documents at inference time and conditions its generation on the retrieved passages.</p>
+
+<h2>Motivation</h2>
+<p>Large language models are notoriously prone to hallucination: producing plausible-sounding but factually incorrect statements. RAG mitigates this by grounding generation in retrieved evidence. When the retrieval step succeeds, the model's output can be checked and cited against concrete sources.</p>
+<p>RAG also makes it practical to keep a model's knowledge current without retraining. Adding a new document to the corpus is far cheaper than fine-tuning, and the model can leverage the new information immediately.</p>
+
+<h2>Architecture</h2>
+<p>A canonical RAG pipeline has three stages: indexing, retrieval, and generation. During indexing, documents are split into chunks and embedded with a dense vector model. At query time, the user's question is embedded with the same model and used to retrieve the nearest chunks. Those chunks are then concatenated into a prompt for the language model.</p>
+<p>Hybrid retrieval, which combines dense embeddings with classical sparse retrieval such as BM25, often outperforms either approach in isolation. Reciprocal rank fusion is a popular way to combine ranked lists from multiple retrievers.</p>
+
+<h2>Applications</h2>
+<p>RAG is used in customer-support chatbots that answer from a knowledge base, in coding assistants that look up library documentation, and in agents that browse the web to answer research questions. Anywhere ground-truth information lives in documents rather than the model's weights, RAG is a natural fit.</p>
+</div></div>
+<div id="mw-footer">Site footer (ignored)</div>
+</body>
+</html>

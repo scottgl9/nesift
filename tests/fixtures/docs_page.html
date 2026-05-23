@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Authentication — Acme API Docs</title></head>
+<body>
+<aside>Sidebar: Quickstart, Guides, Reference</aside>
+<main>
+<h1>Authentication</h1>
+<p>The Acme API uses bearer tokens for authentication. Every request must include an Authorization header whose value is the literal string "Bearer" followed by a space and your API token. Requests without a valid token receive a 401 Unauthorized response.</p>
+
+<h2>Obtaining a token</h2>
+<p>Tokens are issued from the dashboard under Settings → API Keys. You can issue multiple tokens per workspace; each token can be scoped to a subset of permissions. Tokens are shown exactly once at creation time and cannot be retrieved later — store them in a secrets manager.</p>
+
+<h2>Rotating tokens</h2>
+<p>We recommend rotating production tokens every ninety days. To rotate without downtime, create a new token, deploy it to your services, and only then revoke the old token. The dashboard supports overlapping tokens during a rotation window.</p>
+
+<h2>Scopes</h2>
+<p>Each token carries a set of scopes that constrain which endpoints it can call. The default scope, "read", grants read-only access to all resources. The "write" scope additionally permits creating, updating, and deleting resources. Sensitive operations such as billing changes require the "admin" scope, which can only be granted by a workspace owner.</p>
+</main>
+</body>
+</html>

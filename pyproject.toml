@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nesift"
+version = "0.1.0"
+description = "Fast, local semantic search over web content for AI agents."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "GPL-2.0-only" }
+authors = [{ name = "Scott Glover" }]
+keywords = ["semantic-search", "rag", "agents", "bm25", "embeddings", "searxng"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Indexing",
+]
+dependencies = [
+    "model2vec>=0.4,<1",
+    "bm25s>=0.2,<1",
+    "trafilatura>=2.0,<3",
+    "numpy>=2.0,<3",
+    "httpx>=0.27,<1",
+    "typer>=0.12,<1",
+    "tiktoken>=0.8,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "respx",
+]
+
+[project.scripts]
+nesift = "nesift.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/scottgl9/nesift"
+Repository = "https://github.com/scottgl9/nesift"
+Issues = "https://github.com/scottgl9/nesift/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nesift"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "validation: live-network tests (skipped by default)",
+    "slow: tests that download the real embedding model",
+]
+addopts = "-m 'not validation and not slow'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]

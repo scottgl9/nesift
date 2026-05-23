@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+build/
+dist/
+*.egg
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+nesift-*.json

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Designing Resilient Retry Logic</title>
+<meta name="description" content="A practical guide to retry strategies for distributed systems.">
+</head>
+<body>
+<nav>Home | Posts | About</nav>
+<header>
+<h1>Designing Resilient Retry Logic</h1>
+<p class="byline">By Jane Engineer · May 2026</p>
+</header>
+<main>
+<article>
+<p>Retry logic is one of the most important — and most misused — patterns in distributed systems. A naive retry loop can amplify outages, exhaust connection pools, and turn a momentary blip into a sustained incident. This post walks through the patterns we have found reliable in production.</p>
+
+<h2>Why retries matter</h2>
+<p>Most network requests fail for transient reasons: a brief packet drop, a process restart, a load balancer rolling a new node. A single retry with a small delay catches the majority of these failures invisibly to the caller.</p>
+<p>But retries are not free. Every retry consumes a connection, a thread, and downstream capacity. When a downstream service is already overloaded, retries make the problem worse — a phenomenon known as a retry storm.</p>
+
+<h2>Exponential backoff with jitter</h2>
+<p>The canonical recommendation is exponential backoff with jitter. The delay between attempt n and attempt n+1 grows exponentially, but a random factor is mixed in so that clients do not all retry in lockstep.</p>
+<p>A typical formula is: delay = min(cap, base * 2^attempt) * random(0.5, 1.5). The jitter spreads retries across the recovery window, preventing thundering-herd behavior when a downstream comes back online.</p>
+
+<h2>Circuit breakers</h2>
+<p>For long-running outages, retries alone are not enough. A circuit breaker tracks the recent failure rate and short-circuits requests to a failing dependency, returning a fast error instead of piling on. Once the failure rate drops, the breaker allows a small number of probe requests through before re-opening the floodgates.</p>
+
+<h2>When not to retry</h2>
+<p>Not every failure deserves a retry. 4xx client errors will not succeed on a second attempt. Operations that are not idempotent — a POST that charges a credit card — risk double-execution. The rule of thumb: retry on transient infrastructure errors, never on validation errors, and only retry non-idempotent operations behind an idempotency key.</p>
+</article>
+</main>
+<footer>© 2026 Jane Engineer</footer>
+</body>
+</html>
