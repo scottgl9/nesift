@@ -2,8 +2,6 @@
 
 **Fast, local semantic search over web content for AI agents.** Sifts the net for signal — uses ~90% fewer tokens than raw `web_fetch`.
 
-[github.com/scottgl9/nesift](https://github.com/scottgl9/nesift)
-
 ---
 
 ## What it does
@@ -59,16 +57,6 @@ URL → trafilatura extract → heading-aware chunker → triage summary
 ```
 
 See [`docs/architecture.md`](docs/architecture.md).
-
-## Status
-
-All five PRD phases implemented:
-
-- Phase 1 — CLI MVP: `add`, `query`, `list`, `clear`
-- Phase 2 — Hybrid retrieval, cross-page dedup, `--fast`
-- Phase 3 — Triage summaries, `--budget`, `answer`, `score`
-- Phase 4 — MCP server (`nesift[mcp]`, `nesift-mcp` or `nesift mcp`), `nesift init`, OpenClaw skill scaffold
-- Phase 5 — SearXNG bridge, `--lang` (multilingual model), PDF ingestion
 
 ## MCP server
 

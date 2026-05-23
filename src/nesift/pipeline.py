@@ -13,11 +13,11 @@ from nesift import searxng as searxng_mod
 from nesift.budget import trim as budget_trim
 from nesift.chunker import chunk_document
 from nesift.config import DEFAULT_TOP_K
-from nesift.embedder import Embedder, EmbedderProtocol
+from nesift.embedder import EmbedderProtocol
 from nesift.extractor import extract
-from nesift.fetcher import fetch, fetch_raw
-from nesift.pdf import extract_pdf, is_pdf_bytes, is_pdf_url
+from nesift.fetcher import fetch_raw
 from nesift.index.hybrid import rerank, rrf
+from nesift.pdf import extract_pdf, is_pdf_bytes, is_pdf_url
 from nesift.schema import Chunk, Page, QueryResult, ScoredSnippet
 from nesift.scorer import score_snippets
 from nesift.session import SessionStore, page_id_for
@@ -79,7 +79,7 @@ def ingest_url(
         embeddings = [None] * len(texts)
 
     chunks: list[Chunk] = []
-    for i, ((section, text), emb) in enumerate(zip(chunk_specs, embeddings)):
+    for i, ((section, text), emb) in enumerate(zip(chunk_specs, embeddings, strict=False)):
         chunks.append(
             Chunk(
                 id=f"{pid}:{i}",

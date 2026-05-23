@@ -39,7 +39,7 @@ def _embedder(fast: bool = False, lang: bool = False) -> Embedder:
     key = ("fast" if fast else ("lang" if lang else "default"))
     emb = _state.setdefault("embedders", {}).get(key)
     if emb is None:
-        from nesift.config import FAST_MODEL, MULTILINGUAL_MODEL, DEFAULT_MODEL
+        from nesift.config import DEFAULT_MODEL, FAST_MODEL, MULTILINGUAL_MODEL
 
         name = FAST_MODEL if fast else (MULTILINGUAL_MODEL if lang else DEFAULT_MODEL)
         emb = Embedder(name)

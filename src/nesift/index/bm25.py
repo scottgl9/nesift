@@ -58,6 +58,6 @@ class BM25Index:
         # bm25s API: retrieve(queries, k) → (ids, scores), shape (1, k).
         ids, scores = self._engine.retrieve([q_tokens], k=n, show_progress=False)
         out = np.zeros(n, dtype=np.float32)
-        for doc_id, score in zip(ids[0], scores[0]):
+        for doc_id, score in zip(ids[0], scores[0], strict=False):
             out[int(doc_id)] = float(score)
         return out

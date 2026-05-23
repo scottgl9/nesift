@@ -27,7 +27,7 @@ def collapse(
     thr = dedup_threshold() if threshold is None else threshold
     kept: list[QueryResult] = []
     kept_vecs: list[np.ndarray | None] = []
-    for res, emb in zip(results, embeddings):
+    for res, emb in zip(results, embeddings, strict=False):
         merged_into: int | None = None
         if emb is not None:
             for i, kv in enumerate(kept_vecs):

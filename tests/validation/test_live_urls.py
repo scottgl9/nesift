@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import os
 
-import httpx
 import pytest
 
 from nesift.embedder import FakeEmbedder

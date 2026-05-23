@@ -8,29 +8,11 @@ from nesift.extractor import ExtractionError
 from nesift.pdf import extract_pdf, is_pdf_bytes, is_pdf_url
 
 
-def _make_pdf(pages: list[str]) -> bytes:
-    """Build a tiny multi-page PDF in-memory using pypdf."""
-
-    pypdf = pytest.importorskip("pypdf")
-    # pypdf can't render fresh PDFs from raw text, but reportlab is heavy.
-    # Use a minimal hand-rolled PDF generator: a single page per string,
-    # with Helvetica text. This pattern is well documented in pypdf tests.
-    from pypdf import PdfWriter
-
-    writer = PdfWriter()
-    for text in pages:
-        writer.add_blank_page(width=612, height=792)
-        writer.pages[-1].merge_page  # ensure attribute exists
-    # Now overlay text via a separate PDF built with pypdf's content streams.
-    # Easier: write a tiny PDF by hand for each page.
-    return _minimal_pdf(pages)
-
-
 def _minimal_pdf(pages: list[str]) -> bytes:
     """Construct the smallest viable PDF that pypdf can parse text from."""
 
     # Build a 1-page PDF per chunk and merge — keeps the byte construction simple.
-    from pypdf import PdfWriter, PdfReader
+    from pypdf import PdfReader, PdfWriter
 
     writer = PdfWriter()
     for text in pages:
