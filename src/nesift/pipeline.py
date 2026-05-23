@@ -15,7 +15,7 @@ from nesift.chunker import chunk_document
 from nesift.config import DEFAULT_TOP_K
 from nesift.embedder import EmbedderProtocol
 from nesift.extractor import extract
-from nesift.fetcher import fetch_raw
+from nesift.fetcher import FetchResult, fetch_many, fetch_raw
 from nesift.index.hybrid import rerank, rrf
 from nesift.pdf import extract_pdf, is_pdf_bytes, is_pdf_url
 from nesift.schema import Chunk, Page, QueryResult, ScoredSnippet
@@ -101,6 +101,117 @@ def ingest_url(
     )
     store.add_page(page)
     return page
+
+
+@dataclass
+class BatchResult:
+    """Per-URL outcome from :func:`ingest_urls`."""
+
+    url: str
+    ok: bool
+    page: Page | None = None
+    error: str | None = None
+
+
+def ingest_urls(
+    urls: list[str],
+    store: SessionStore,
+    *,
+    embedder: EmbedderProtocol | None = None,
+    concurrency: int = 8,
+) -> list[BatchResult]:
+    """Fetch many URLs concurrently and index them with a single batched embed.
+
+    Network I/O is parallelized via :func:`fetch_many`; per-URL failures
+    are reported in the returned :class:`BatchResult` list rather than
+    raised. The embedding model is invoked **once** across every chunk
+    of every successful page, which avoids per-URL model dispatch
+    overhead.
+    """
+
+    if not urls:
+        return []
+
+    fetched = fetch_many(urls, concurrency=concurrency)
+
+    extracted: list[tuple[FetchResult, object | None, str | None]] = []
+    for fr in fetched:
+        if not fr.ok:
+            extracted.append((fr, None, fr.error))
+            continue
+        try:
+            doc = _extract_for(fr)
+        except Exception as exc:
+            extracted.append((fr, None, str(exc)))
+            continue
+        extracted.append((fr, doc, None))
+
+    # Flatten all chunks across all successful pages for one batched embed call.
+    flat_texts: list[str] = []
+    flat_owner: list[int] = []  # index into extracted/page-builder list
+    per_page_chunks: list[list[tuple[str | None, str]]] = []
+    for i, (_fr, doc, err) in enumerate(extracted):
+        if err or doc is None:
+            per_page_chunks.append([])
+            continue
+        chunks = chunk_document(doc)
+        per_page_chunks.append(chunks)
+        for _, text in chunks:
+            flat_texts.append(text)
+            flat_owner.append(i)
+
+    flat_embeddings: list[np.ndarray | None]
+    if embedder is not None and flat_texts:
+        mat = embedder.embed_many(flat_texts)
+        flat_embeddings = [mat[i] for i in range(mat.shape[0])]
+    else:
+        flat_embeddings = [None] * len(flat_texts)
+
+    # Distribute embeddings back to their owning pages.
+    cursor = 0
+    out: list[BatchResult] = []
+    for i, (fr, doc, err) in enumerate(extracted):
+        if err or doc is None:
+            out.append(BatchResult(url=fr.url, ok=False, error=err or "extraction failed"))
+            continue
+        chunks_spec = per_page_chunks[i]
+        n = len(chunks_spec)
+        page_embs = flat_embeddings[cursor : cursor + n]
+        cursor += n
+        pid = page_id_for(fr.url)
+        chunks = [
+            Chunk(
+                id=f"{pid}:{j}",
+                page_id=pid,
+                url=fr.url,
+                section=section,
+                text=text,
+                token_count=count_tokens(text),
+                embedding=page_embs[j],
+            )
+            for j, (section, text) in enumerate(chunks_spec)
+        ]
+        page = Page(
+            id=pid,
+            url=fr.url,
+            title=doc.title,  # type: ignore[union-attr]
+            fetched_at=time.time(),
+            triage=triage(doc),  # type: ignore[arg-type]
+            chunks=chunks,
+        )
+        store.add_page(page)
+        out.append(BatchResult(url=fr.url, ok=True, page=page))
+    return out
+
+
+def _extract_for(fr: FetchResult):
+    """Pick the right extractor based on URL or response body."""
+
+    assert fr.body is not None
+    ctype = (fr.content_type or "").lower()
+    if is_pdf_url(fr.url) or "application/pdf" in ctype or is_pdf_bytes(fr.body[:5]):
+        return extract_pdf(fr.body, url=fr.url)
+    return extract(fr.body.decode("utf-8", errors="replace"), url=fr.url)
 
 
 # ---------- query ----------

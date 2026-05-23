@@ -19,6 +19,7 @@ from nesift import __version__
 from nesift.embedder import Embedder
 from nesift.pipeline import (
     ingest_url,
+    ingest_urls,
     run_answer,
     run_query,
     run_score,
@@ -102,13 +103,14 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="add_batch",
-            description="Ingest multiple URLs sequentially.",
+            description="Ingest multiple URLs in parallel.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "urls": {"type": "array", "items": {"type": "string"}},
                     "fast": {"type": "boolean", "default": False},
                     "lang": {"type": "boolean", "default": False},
+                    "concurrency": {"type": "integer", "default": 8},
                 },
                 "required": ["urls"],
             },
@@ -197,13 +199,18 @@ async def call_tool(name: str, arguments: dict[str, Any] | None) -> list[TextCon
     if name == "add_batch":
         store = _store()
         emb = _embedder(fast=args.get("fast", False), lang=args.get("lang", False))
-        rows: list[dict[str, Any]] = []
-        for u in args.get("urls", []):
-            try:
-                page = ingest_url(u, store, embedder=emb)
-                rows.append({"url": u, "ok": True, "chunks": len(page.chunks)})
-            except Exception as exc:
-                rows.append({"url": u, "ok": False, "error": str(exc)})
+        urls = list(args.get("urls", []))
+        concurrency = int(args.get("concurrency", 8))
+        batch = ingest_urls(urls, store, embedder=emb, concurrency=concurrency)
+        rows = [
+            {
+                "url": r.url,
+                "ok": r.ok,
+                "chunks": len(r.page.chunks) if r.page else 0,
+                "error": r.error,
+            }
+            for r in batch
+        ]
         _persist(store)
         return _text({"pages": rows})
 

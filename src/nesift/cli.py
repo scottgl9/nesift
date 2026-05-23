@@ -13,6 +13,7 @@ from nesift.config import DEFAULT_TOP_K, session_path
 from nesift.embedder import Embedder
 from nesift.pipeline import (
     ingest_url,
+    ingest_urls,
     run_answer,
     run_query,
     run_score,
@@ -92,20 +93,24 @@ def cmd_add_batch(
     fast: bool = typer.Option(False, "--fast"),
     lang: bool = typer.Option(False, "--lang"),
     no_embed: bool = typer.Option(False, "--no-embed"),
+    concurrency: int = typer.Option(8, "--concurrency", help="Parallel fetches."),
     session: str | None = typer.Option(None, "--session"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Ingest multiple URLs sequentially; continues past per-URL failures."""
+    """Ingest multiple URLs in parallel; continues past per-URL failures."""
 
     store = _load_store(session)
     embedder = None if no_embed else _embedder(fast, lang)
-    summary: list[dict] = []
-    for url in urls:
-        try:
-            page = ingest_url(url, store, embedder=embedder)
-            summary.append({"url": url, "ok": True, "chunks": len(page.chunks)})
-        except Exception as exc:
-            summary.append({"url": url, "ok": False, "error": str(exc)})
+    results = ingest_urls(urls, store, embedder=embedder, concurrency=concurrency)
+    summary = [
+        {
+            "url": r.url,
+            "ok": r.ok,
+            "chunks": len(r.page.chunks) if r.page else 0,
+            "error": r.error,
+        }
+        for r in results
+    ]
     _persist(store)
     if as_json:
         _emit({"pages": summary}, as_json=True)
