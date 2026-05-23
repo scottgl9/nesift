@@ -9,6 +9,7 @@ from pathlib import Path
 import typer
 
 from nesift import __version__
+from nesift import cache as cache_mod
 from nesift.config import DEFAULT_TOP_K, session_path
 from nesift.embedder import Embedder
 from nesift.pipeline import (
@@ -58,6 +59,7 @@ def cmd_add(
     fast: bool = typer.Option(False, "--fast", help="Use the smaller potion-base-8M model."),
     lang: bool = typer.Option(False, "--lang", help="Use potion-multilingual-128M (101 languages)."),
     no_embed: bool = typer.Option(False, "--no-embed", help="Skip embeddings (BM25 only)."),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Bypass the persistent cache."),
     session: str | None = typer.Option(None, "--session"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
@@ -66,7 +68,7 @@ def cmd_add(
     store = _load_store(session)
     embedder = None if no_embed else _embedder(fast, lang)
     try:
-        page = ingest_url(url, store, embedder=embedder)
+        page = ingest_url(url, store, embedder=embedder, use_cache=not no_cache)
     except Exception as exc:
         typer.secho(f"add failed: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -94,6 +96,7 @@ def cmd_add_batch(
     lang: bool = typer.Option(False, "--lang"),
     no_embed: bool = typer.Option(False, "--no-embed"),
     concurrency: int = typer.Option(8, "--concurrency", help="Parallel fetches."),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Bypass the persistent cache."),
     session: str | None = typer.Option(None, "--session"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
@@ -101,7 +104,9 @@ def cmd_add_batch(
 
     store = _load_store(session)
     embedder = None if no_embed else _embedder(fast, lang)
-    results = ingest_urls(urls, store, embedder=embedder, concurrency=concurrency)
+    results = ingest_urls(
+        urls, store, embedder=embedder, concurrency=concurrency, use_cache=not no_cache
+    )
     summary = [
         {
             "url": r.url,
@@ -407,6 +412,31 @@ def cmd_mcp() -> None:
         )
         raise typer.Exit(code=2) from exc
     mcp_main()
+
+
+cache_app = typer.Typer(help="Persistent extract + embedding cache.", no_args_is_help=True)
+app.add_typer(cache_app, name="cache")
+
+
+@cache_app.command("stats")
+def cmd_cache_stats(as_json: bool = typer.Option(False, "--json")) -> None:
+    """Show cache directory, entry count, and total size."""
+
+    s = cache_mod.stats()
+    if as_json:
+        _emit(s, as_json=True)
+    else:
+        typer.echo(f"dir:     {s['dir']}")
+        typer.echo(f"entries: {s['entries']}")
+        typer.echo(f"bytes:   {s['bytes']}")
+
+
+@cache_app.command("clear")
+def cmd_cache_clear() -> None:
+    """Delete every cached page."""
+
+    n = cache_mod.clear()
+    typer.echo(f"removed {n} cache entries")
 
 
 @app.command("version")

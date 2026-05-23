@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from nesift import answer as answer_mod
+from nesift import cache as cache_mod
 from nesift import dedup as dedup_mod
 from nesift import searxng as searxng_mod
 from nesift.budget import trim as budget_trim
@@ -44,6 +45,7 @@ def ingest_url(
     embedder: EmbedderProtocol | None = None,
     html: str | None = None,
     pdf_bytes: bytes | None = None,
+    use_cache: bool = True,
 ) -> Page:
     """Fetch (if needed), extract, chunk, embed, and store one URL.
 
@@ -51,7 +53,20 @@ def ingest_url(
     the same URL. Dispatches to the PDF extractor when the URL ends in
     ``.pdf`` or the response body has a PDF signature; otherwise uses
     the trafilatura HTML extractor.
+
+    A persistent cache under ``$NESIFT_CACHE_DIR`` (default
+    ``~/.cache/nesift/pages``) skips the entire fetch/extract/chunk/embed
+    pipeline on a hit. Pass ``html=`` or ``pdf_bytes=`` (e.g. for tests)
+    to bypass the network and also bypass the cache.
     """
+
+    inline_body = html is not None or pdf_bytes is not None
+    model = _model_name(embedder) if not inline_body else None
+    if use_cache and not inline_body:
+        cached = cache_mod.get(url, model)
+        if cached is not None and _cache_matches(cached, embedder):
+            store.add_page(cached)
+            return cached
 
     if pdf_bytes is not None:
         doc = extract_pdf(pdf_bytes, url=url)
@@ -100,7 +115,23 @@ def ingest_url(
         chunks=chunks,
     )
     store.add_page(page)
+    if use_cache and not inline_body:
+        cache_mod.put(page, model)
     return page
+
+
+def _model_name(embedder: EmbedderProtocol | None) -> str | None:
+    if embedder is None:
+        return None
+    return getattr(embedder, "model_name", None)
+
+
+def _cache_matches(page: Page, embedder: EmbedderProtocol | None) -> bool:
+    """If an embedder is configured, the cached page must have embeddings."""
+
+    if embedder is None:
+        return True
+    return all(c.embedding is not None for c in page.chunks)
 
 
 @dataclass
@@ -119,6 +150,7 @@ def ingest_urls(
     *,
     embedder: EmbedderProtocol | None = None,
     concurrency: int = 8,
+    use_cache: bool = True,
 ) -> list[BatchResult]:
     """Fetch many URLs concurrently and index them with a single batched embed.
 
@@ -126,13 +158,23 @@ def ingest_urls(
     are reported in the returned :class:`BatchResult` list rather than
     raised. The embedding model is invoked **once** across every chunk
     of every successful page, which avoids per-URL model dispatch
-    overhead.
+    overhead. Cache hits short-circuit before any network call.
     """
 
     if not urls:
         return []
 
-    fetched = fetch_many(urls, concurrency=concurrency)
+    model = _model_name(embedder)
+    cached_pages: dict[str, Page] = {}
+    if use_cache:
+        for u in urls:
+            page = cache_mod.get(u, model)
+            if page is not None and _cache_matches(page, embedder):
+                cached_pages[u] = page
+
+    misses = [u for u in urls if u not in cached_pages]
+    fetched = fetch_many(misses, concurrency=concurrency) if misses else []
+    fetched_by_url = {fr.url: fr for fr in fetched}
 
     extracted: list[tuple[FetchResult, object | None, str | None]] = []
     for fr in fetched:
@@ -167,12 +209,12 @@ def ingest_urls(
     else:
         flat_embeddings = [None] * len(flat_texts)
 
-    # Distribute embeddings back to their owning pages.
+    # Distribute embeddings back to their owning pages, indexed by URL.
     cursor = 0
-    out: list[BatchResult] = []
+    built: dict[str, BatchResult] = {}
     for i, (fr, doc, err) in enumerate(extracted):
         if err or doc is None:
-            out.append(BatchResult(url=fr.url, ok=False, error=err or "extraction failed"))
+            built[fr.url] = BatchResult(url=fr.url, ok=False, error=err or "extraction failed")
             continue
         chunks_spec = per_page_chunks[i]
         n = len(chunks_spec)
@@ -200,7 +242,24 @@ def ingest_urls(
             chunks=chunks,
         )
         store.add_page(page)
-        out.append(BatchResult(url=fr.url, ok=True, page=page))
+        if use_cache:
+            cache_mod.put(page, model)
+        built[fr.url] = BatchResult(url=fr.url, ok=True, page=page)
+
+    # Assemble final result in input order; promote cache hits into the store.
+    out: list[BatchResult] = []
+    for u in urls:
+        if u in cached_pages:
+            page = cached_pages[u]
+            store.add_page(page)
+            out.append(BatchResult(url=u, ok=True, page=page))
+        elif u in built:
+            out.append(built[u])
+        else:
+            # Should not happen: every URL is either cached or fetched.
+            fr = fetched_by_url.get(u)
+            err = fr.error if fr else "missing"
+            out.append(BatchResult(url=u, ok=False, error=err))
     return out
 
 

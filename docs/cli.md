@@ -7,7 +7,9 @@ All commands accept:
 | `--session <id>` | `pid<ppid>` or `$NESIFT_SESSION` | Pick a session id |
 | `--json` | off | Emit JSON instead of human-readable output |
 | `--fast` | off (where applicable) | Use the smaller `potion-base-8M` model |
+| `--lang` | off (where applicable) | Use `potion-multilingual-128M` (101 languages) |
 | `--no-embed` | off (where applicable) | Skip embeddings entirely (BM25-only mode) |
+| `--no-cache` | off (where applicable) | Bypass the persistent cache for this command |
 
 ## `nesift add <url>`
 
@@ -26,7 +28,12 @@ JSON output:
 
 ## `nesift add-batch <url> [<url> ...]`
 
-Sequentially ingest multiple URLs. Continues past per-URL failures and reports each result.
+Ingest multiple URLs **in parallel** (default: 8 concurrent fetches via `httpx.AsyncClient`). Continues past per-URL failures and reports each result.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--concurrency N` | 8 | Max simultaneous fetches |
+| `--no-cache` | off | Bypass the persistent cache for this batch |
 
 ## `nesift query "<q>"`
 
@@ -88,6 +95,16 @@ Drop the active session's index file.
 ## `nesift save -o <path>`
 
 Copy the active session's index JSON to `<path>` for later reuse / inspection.
+
+## `nesift cache stats` / `nesift cache clear`
+
+Inspect or wipe the persistent extract+embedding cache (default location: `~/.cache/nesift/pages/`). Cache hits skip the entire fetch → extract → chunk → embed pipeline. Overrides:
+
+- `NESIFT_CACHE_DIR=/some/path` — relocate the cache
+- `NESIFT_NO_CACHE=1` — disable globally
+- `--no-cache` on `add` / `add-batch` — disable per-invocation
+
+Cache entries are keyed on `(url, embedding-model-name)`, so switching between `potion-retrieval-32M`, `potion-base-8M` (`--fast`), and `potion-multilingual-128M` (`--lang`) automatically rebuilds rather than serving stale embeddings.
 
 ## `nesift version`
 
